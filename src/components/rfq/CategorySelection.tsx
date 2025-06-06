@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { furnitureCategories } from "@/data/categories";
+import { useState, useEffect } from "react";
+import { getFrontendCategories } from "@/lib/db-categories";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Info, Plus, Minus } from "lucide-react";
+import { Info, Plus, Minus, Loader2 } from "lucide-react";
 import * as LucideIcons from "lucide-react";
 
 interface CategorySelectionProps {
@@ -14,11 +14,42 @@ interface CategorySelectionProps {
   onSelectionChange: (categories: { [categoryId: string]: number }) => void;
 }
 
+interface Category {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  image?: string;
+}
+
 export default function CategorySelection({
   selectedCategories,
   onSelectionChange,
 }: CategorySelectionProps) {
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [flippedCards, setFlippedCards] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const fetchedCategories = await getFrontendCategories();
+        setCategories(fetchedCategories);
+      } catch (err) {
+        console.error("Error loading categories:", err);
+        setError(
+          "Nu am putut încărca categoriile. Te rugăm să încerci din nou."
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadCategories();
+  }, []);
 
   const toggleCardFlip = (categoryId: string) => {
     const newFlipped = new Set(flippedCards);
@@ -45,6 +76,52 @@ export default function CategorySelection({
     return IconComponent ? <IconComponent className="h-8 w-8" /> : null;
   };
 
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-xl font-semibold mb-2">
+            Alege Categoriile de Mobilier
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400">
+            Selectează categoriile de mobilier și cantitatea pentru fiecare.
+            Poți apăsa pe butonul info pentru mai multe detalii.
+          </p>
+        </div>
+
+        <div className="flex items-center justify-center py-12">
+          <div className="flex items-center space-x-2">
+            <Loader2 className="h-6 w-6 animate-spin" />
+            <span>Se încarcă categoriile...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-xl font-semibold mb-2">
+            Alege Categoriile de Mobilier
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400">
+            Selectează categoriile de mobilier și cantitatea pentru fiecare.
+            Poți apăsa pe butonul info pentru mai multe detalii.
+          </p>
+        </div>
+
+        <div className="text-center py-12">
+          <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
+          <Button onClick={() => window.location.reload()}>
+            Încearcă din nou
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -66,9 +143,7 @@ export default function CategorySelection({
           <div className="flex flex-wrap gap-2">
             {Object.entries(selectedCategories).map(
               ([categoryId, quantity]) => {
-                const category = furnitureCategories.find(
-                  (c) => c.id === categoryId
-                );
+                const category = categories.find((c) => c.id === categoryId);
                 return category ? (
                   <Badge key={categoryId} variant="secondary">
                     {category.name} ({quantity})
@@ -82,7 +157,7 @@ export default function CategorySelection({
 
       {/* Category Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {furnitureCategories.map((category) => {
+        {categories.map((category) => {
           const quantity = selectedCategories[category.id] || 0;
           const isSelected = quantity > 0;
           const isFlipped = flippedCards.has(category.id);
