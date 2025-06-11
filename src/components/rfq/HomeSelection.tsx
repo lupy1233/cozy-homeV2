@@ -1,11 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useHomes } from "@/contexts/HomeContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  ROMANIAN_COUNTIES,
+  ROMANIAN_CITIES_BY_COUNTY,
+  MAJOR_ROMANIAN_CITIES,
+  type AddressData,
+} from "@/lib/romanian-locations";
 import {
   Dialog,
   DialogContent,
@@ -30,20 +43,35 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export default function HomeSelection() {
-  const { homes, selectedHome, addHome, selectHome, deleteHome, updateHome } =
-    useHomes();
+  const {
+    homes,
+    selectedHome,
+    addHome,
+    selectHome,
+    deleteHome,
+    updateHome,
+    loading,
+  } = useHomes();
   const [isAddingHome, setIsAddingHome] = useState(false);
   const [editingHome, setEditingHome] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [newHome, setNewHome] = useState({
     name: "",
     country: "România",
     county: "",
+    countyCode: "",
     city: "",
     street: "",
     number: "",
   });
 
-  const handleAddHome = () => {
+  // Get available cities based on selected county
+  const availableCities = useMemo(() => {
+    if (!newHome.countyCode) return MAJOR_ROMANIAN_CITIES;
+    return ROMANIAN_CITIES_BY_COUNTY[newHome.countyCode] || [];
+  }, [newHome.countyCode]);
+
+  const handleAddHome = async () => {
     if (
       newHome.name.trim() &&
       newHome.county.trim() &&
@@ -51,40 +79,57 @@ export default function HomeSelection() {
       newHome.street.trim() &&
       newHome.number.trim()
     ) {
-      if (editingHome) {
-        updateHome(editingHome, newHome);
-        setEditingHome(null);
-      } else {
-        addHome(newHome);
+      try {
+        setIsSubmitting(true);
+        if (editingHome) {
+          await updateHome(editingHome, newHome);
+          setEditingHome(null);
+        } else {
+          await addHome(newHome);
+        }
+        setNewHome({
+          name: "",
+          country: "România",
+          county: "",
+          countyCode: "",
+          city: "",
+          street: "",
+          number: "",
+        });
+        setIsAddingHome(false);
+      } catch (error) {
+        console.error("Error saving home:", error);
+        // You might want to show an error toast here
+      } finally {
+        setIsSubmitting(false);
       }
-      setNewHome({
-        name: "",
-        country: "România",
-        county: "",
-        city: "",
-        street: "",
-        number: "",
-      });
-      setIsAddingHome(false);
     }
   };
 
   const handleEditHome = (home: any) => {
+    // Find county code from county name for editing
+    const countyData = ROMANIAN_COUNTIES.find((c) => c.name === home.county);
     setNewHome({
-      name: home.name,
-      country: home.country,
-      county: home.county,
-      city: home.city,
-      street: home.street,
-      number: home.number,
+      name: home.name || "",
+      country: home.country || "România",
+      county: home.county || "",
+      countyCode: countyData?.code || "",
+      city: home.city || "",
+      street: home.street || "",
+      number: home.number || "",
     });
     setEditingHome(home.id);
     setIsAddingHome(true);
   };
 
-  const handleDeleteHome = (homeId: string) => {
+  const handleDeleteHome = async (homeId: string) => {
     if (confirm("Ești sigur că vrei să ștergi această casă?")) {
-      deleteHome(homeId);
+      try {
+        await deleteHome(homeId);
+      } catch (error) {
+        console.error("Error deleting home:", error);
+        // You might want to show an error toast here
+      }
     }
   };
 
@@ -95,11 +140,31 @@ export default function HomeSelection() {
       name: "",
       country: "România",
       county: "",
+      countyCode: "",
       city: "",
       street: "",
       number: "",
     });
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-xl font-semibold mb-2">Selectează Casa</h2>
+          <p className="text-gray-600 dark:text-gray-400">
+            Alege casa pentru care dorești să creezi cererea de mobilier.
+          </p>
+        </div>
+        <div className="flex items-center justify-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <span className="ml-2 text-gray-600 dark:text-gray-400">
+            Se încarcă casele...
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -181,24 +246,28 @@ export default function HomeSelection() {
         </div>
       )}
 
-      {/* Add New Home */}
-      <Dialog open={isAddingHome} onOpenChange={setIsAddingHome}>
-        <DialogTrigger asChild>
-          <Card className="cursor-pointer border-dashed border-2 hover:border-primary/50 transition-colors">
-            <CardContent className="p-6 text-center">
-              <div className="flex flex-col items-center space-y-2">
-                <div className="p-3 bg-gray-100 dark:bg-gray-800 rounded-full">
-                  <Plus className="h-6 w-6 text-gray-600 dark:text-gray-400" />
-                </div>
-                <h3 className="font-medium">Adaugă o Casă Nouă</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Creează o nouă locație pentru cererea ta
-                </p>
+      {/* Add New Home - Only show trigger when homes exist */}
+      {homes.length > 0 && (
+        <Card
+          className="cursor-pointer border-dashed border-2 hover:border-primary/50 transition-colors"
+          onClick={() => setIsAddingHome(true)}
+        >
+          <CardContent className="p-6 text-center">
+            <div className="flex flex-col items-center space-y-2">
+              <div className="p-3 bg-gray-100 dark:bg-gray-800 rounded-full">
+                <Plus className="h-6 w-6 text-gray-600 dark:text-gray-400" />
               </div>
-            </CardContent>
-          </Card>
-        </DialogTrigger>
+              <h3 className="font-medium">Adaugă o Casă Nouă</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Creează o nouă locație pentru cererea ta
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
+      {/* Dialog for adding/editing homes - Always available */}
+      <Dialog open={isAddingHome} onOpenChange={setIsAddingHome}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
@@ -225,34 +294,82 @@ export default function HomeSelection() {
                 <Input
                   id="home-country"
                   value={newHome.country}
-                  onChange={(e) =>
-                    setNewHome({ ...newHome, country: e.target.value })
-                  }
+                  disabled
+                  className="bg-gray-50 dark:bg-gray-800"
                 />
               </div>
               <div>
                 <Label htmlFor="home-county">Județul</Label>
-                <Input
-                  id="home-county"
-                  placeholder="ex: București, Cluj, Iași"
-                  value={newHome.county}
-                  onChange={(e) =>
-                    setNewHome({ ...newHome, county: e.target.value })
-                  }
-                />
+                <Select
+                  value={newHome.countyCode}
+                  onValueChange={(value) => {
+                    const county = ROMANIAN_COUNTIES.find(
+                      (c) => c.code === value
+                    );
+                    setNewHome({
+                      ...newHome,
+                      countyCode: value,
+                      county: county?.name || "",
+                      city: "", // Reset city when county changes
+                    });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selectează județul" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ROMANIAN_COUNTIES.map((county) => (
+                      <SelectItem key={county.code} value={county.code}>
+                        {county.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
             <div>
               <Label htmlFor="home-city">Orașul</Label>
-              <Input
-                id="home-city"
-                placeholder="ex: București, Cluj-Napoca, Iași"
+              <Select
                 value={newHome.city}
-                onChange={(e) =>
-                  setNewHome({ ...newHome, city: e.target.value })
+                onValueChange={(value) =>
+                  setNewHome({ ...newHome, city: value })
                 }
-              />
+              >
+                <SelectTrigger>
+                  <SelectValue
+                    placeholder={
+                      newHome.countyCode
+                        ? "Selectează orașul"
+                        : "Selectează mai întâi județul"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableCities.map((city) => (
+                    <SelectItem key={city} value={city}>
+                      {city}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {/* Option to add custom city if not in list */}
+              <div className="mt-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    const customCity = prompt("Introduceți numele orașului:");
+                    if (customCity) {
+                      setNewHome({ ...newHome, city: customCity });
+                    }
+                  }}
+                  className="text-xs text-muted-foreground"
+                >
+                  + Nu găsesc orașul meu
+                </Button>
+              </div>
             </div>
 
             <div className="grid grid-cols-3 gap-4">
@@ -287,13 +404,17 @@ export default function HomeSelection() {
               <Button
                 onClick={handleAddHome}
                 disabled={
+                  isSubmitting ||
                   !newHome.name.trim() ||
-                  !newHome.county.trim() ||
+                  !newHome.countyCode.trim() ||
                   !newHome.city.trim() ||
                   !newHome.street.trim() ||
                   !newHome.number.trim()
                 }
               >
+                {isSubmitting && (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                )}
                 {editingHome ? "Salvează Modificările" : "Adaugă Casa"}
               </Button>
             </div>

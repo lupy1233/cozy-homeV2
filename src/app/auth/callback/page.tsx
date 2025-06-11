@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { CheckCircle, AlertCircle } from "lucide-react";
 import Link from "next/link";
 
-export default function AuthCallbackPage() {
+function AuthCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<"loading" | "success" | "error">(
@@ -108,5 +108,29 @@ export default function AuthCallbackPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function AuthCallbackPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-md w-full space-y-8">
+            <div className="text-center">
+              <Link href="/" className="text-2xl font-bold text-primary">
+                Cozy Home
+              </Link>
+              <div className="mx-auto mt-6 h-16 w-16 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+              <h2 className="mt-6 text-3xl font-bold text-gray-900 dark:text-white">
+                Se încarcă...
+              </h2>
+            </div>
+          </div>
+        </main>
+      }
+    >
+      <AuthCallbackContent />
+    </Suspense>
   );
 }

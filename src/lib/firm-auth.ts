@@ -123,7 +123,7 @@ export async function loginFirmUser(
       .eq("id", userData.id);
 
     // Set session cookie
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     cookieStore.set("firm_session", sessionToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -164,7 +164,7 @@ export async function loginFirmUser(
 // Get current session
 export async function getCurrentFirmSession(): Promise<FirmSession | null> {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const sessionToken = cookieStore.get("firm_session")?.value;
 
     if (!sessionToken) {
@@ -254,7 +254,7 @@ export async function getCurrentFirmSession(): Promise<FirmSession | null> {
 // Logout firm user
 export async function logoutFirmUser(): Promise<void> {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const sessionToken = cookieStore.get("firm_session")?.value;
 
     if (sessionToken) {

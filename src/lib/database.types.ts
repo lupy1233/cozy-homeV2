@@ -298,6 +298,102 @@ export interface Database {
           deleted_at?: string | null;
         };
       };
+      request_assignments: {
+        Row: {
+          id: string;
+          request_id: string | null;
+          firm_id: string | null;
+          redeemed_at: string | null;
+          quoted_at: string | null;
+          price_cents: number | null;
+          currency_code: string | null;
+          fx_rate_eur: number | null;
+          accepted_at: string | null;
+          declined_at: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          request_id?: string | null;
+          firm_id?: string | null;
+          redeemed_at?: string | null;
+          quoted_at?: string | null;
+          price_cents?: number | null;
+          currency_code?: string | null;
+          fx_rate_eur?: number | null;
+          accepted_at?: string | null;
+          declined_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          request_id?: string | null;
+          firm_id?: string | null;
+          redeemed_at?: string | null;
+          quoted_at?: string | null;
+          price_cents?: number | null;
+          currency_code?: string | null;
+          fx_rate_eur?: number | null;
+          accepted_at?: string | null;
+          declined_at?: string | null;
+          deleted_at?: string | null;
+        };
+      };
+      threads: {
+        Row: {
+          id: string;
+          request_id: string | null;
+          firm_id: string | null;
+          created_at: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          request_id?: string | null;
+          firm_id?: string | null;
+          created_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          request_id?: string | null;
+          firm_id?: string | null;
+          created_at?: string | null;
+          deleted_at?: string | null;
+        };
+      };
+      messages: {
+        Row: {
+          id: string;
+          thread_id: string | null;
+          sender_id: string | null;
+          body: string | null;
+          attachment_keys: string[] | null;
+          sent_at: string | null;
+          seen_at: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          thread_id?: string | null;
+          sender_id?: string | null;
+          body?: string | null;
+          attachment_keys?: string[] | null;
+          sent_at?: string | null;
+          seen_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          thread_id?: string | null;
+          sender_id?: string | null;
+          body?: string | null;
+          attachment_keys?: string[] | null;
+          sent_at?: string | null;
+          seen_at?: string | null;
+          deleted_at?: string | null;
+        };
+      };
     };
     Views: {
       [_ in never]: never;
