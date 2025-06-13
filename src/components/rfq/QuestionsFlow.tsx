@@ -2,11 +2,14 @@
 
 import { useState, useEffect } from "react";
 import {
-  getFrontendQuestionsForCategory,
   getFrontendCategories,
+  getFilteredQuestionsForCategory,
+  getDatabaseQuestionsForCategory,
 } from "@/lib/db-categories";
-import { Question, QuestionType, SelectionType } from "@/data/questions";
-import QuestionCard from "./QuestionCard";
+
+// Import types from ImprovedQuestionCard
+import { Question, QuestionOption } from "./ImprovedQuestionCard";
+import ImprovedQuestionCard from "./ImprovedQuestionCard";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
@@ -32,8 +35,7 @@ export default function QuestionsFlow({
   onBack,
   onNext,
 }: QuestionsFlowProps) {
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [answers, setAnswers] = useState<{ [key: string]: any }>({});
+  const [categories, setCategories] = useState<Category[]>([]);
   const [allQuestions, setAllQuestions] = useState<
     Array<{
       question: Question;
@@ -41,82 +43,84 @@ export default function QuestionsFlow({
       instanceId: string;
     }>
   >([]);
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [answers, setAnswers] = useState<{ [key: string]: any }>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Generate default questions for categories that don't have specific questions
-  const generateDefaultQuestions = (categoryId: string): Question[] => {
-    return [
-      {
-        id: "measurements",
-        title: "Rough measurements",
-        description: "Provide the dimensions for your furniture",
-        type: "measurements" as QuestionType,
-        required: true,
-        measurements: {
-          fields: [
-            { id: "length", label: "Length", required: true },
-            { id: "width", label: "Width", required: true },
-            { id: "height", label: "Height", required: true },
-          ],
-          units: ["m", "cm", "mm"],
-          defaultUnit: "cm",
-        },
-      },
-      {
-        id: "material",
-        title: "The door Material",
-        type: "cards" as QuestionType,
-        selectionType: "multiple" as SelectionType,
-        required: true,
-        options: [
-          {
-            id: "pal",
-            label: "PAL",
-            description: "Particle board with melamine coating",
-            icon: "Square",
-          },
-          {
-            id: "mdf-infoliat",
-            label: "MDF Infoliat",
-            description: "MDF with foil wrapping",
-            icon: "Layers",
-          },
-          {
-            id: "mdf-vopsit",
-            label: "MDF Vopsit",
-            description: "Painted MDF finish",
-            icon: "Paintbrush",
-          },
-        ],
-      },
-      {
-        id: "opening-method",
-        title: "The method of Opening",
-        type: "cards" as QuestionType,
-        selectionType: "single" as SelectionType,
-        required: true,
-        options: [
-          {
-            id: "push-to-open",
-            label: "Push to Open",
-            description: "Touch to open mechanism",
-            icon: "Hand",
-          },
-          {
-            id: "maner",
-            label: "Maner",
-            description: "Traditional handles",
-            icon: "Grab",
-          },
-        ],
-      },
-    ];
+  const loadQuestionsForCategory = async (
+    categoryId: string,
+    previousAnswers: Record<string, any> = {}
+  ): Promise<Question[]> => {
+    try {
+      // Get database questions in ImprovedQuestionCard format directly
+      const dbQuestions = await getDatabaseQuestionsForCategory(categoryId);
+
+      console.log(
+        `Loaded ${dbQuestions.length} questions for category ${categoryId}`
+      );
+
+      return dbQuestions;
+    } catch (error) {
+      console.error("Error loading questions for category:", categoryId, error);
+      // Return empty array instead of fallback questions
+      return [];
+    }
+  };
+
+  const reloadQuestionsWithVisibility = async () => {
+    try {
+      setLoading(true);
+
+      // Get all current answers for visibility calculation
+      const currentAnswers: Record<string, any> = {};
+      Object.entries(answers).forEach(([key, value]) => {
+        // Extract question ID from answer key (instanceId-questionId format)
+        const questionId = key.split("-").slice(1).join("-");
+        currentAnswers[questionId] = value;
+      });
+
+      const questions: Array<{
+        question: Question;
+        categoryId: string;
+        instanceId: string;
+      }> = [];
+
+      for (const [categoryId, quantity] of Object.entries(selectedCategories)) {
+        // Load questions with current answers for visibility
+        const categoryQuestions = await loadQuestionsForCategory(
+          categoryId,
+          currentAnswers
+        );
+
+        // Create questions for each instance of this category
+        for (let i = 1; i <= quantity; i++) {
+          categoryQuestions.forEach((question) => {
+            questions.push({
+              question,
+              categoryId,
+              instanceId: `${categoryId}-${i}`,
+            });
+          });
+        }
+      }
+
+      setAllQuestions(questions);
+
+      // Adjust current question index if needed
+      if (currentQuestionIndex >= questions.length && questions.length > 0) {
+        setCurrentQuestionIndex(questions.length - 1);
+      }
+    } catch (err) {
+      console.error("Error reloading questions:", err);
+      setError("Nu am putut reîncărca întrebările.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    const loadQuestionsAndCategories = async () => {
+    const loadInitialData = async () => {
       try {
         setLoading(true);
         setError(null);
@@ -125,57 +129,25 @@ export default function QuestionsFlow({
         const fetchedCategories = await getFrontendCategories();
         setCategories(fetchedCategories);
 
-        // Generate all questions for all selected categories and their instances
-        const questions: Array<{
-          question: Question;
-          categoryId: string;
-          instanceId: string;
-        }> = [];
-
-        for (const [categoryId, quantity] of Object.entries(
-          selectedCategories
-        )) {
-          // Load questions for this category from database
-          const categoryQuestions = await getFrontendQuestionsForCategory(
-            categoryId
-          );
-
-          // If no specific questions found, use default questions
-          const questionsToUse =
-            categoryQuestions.length > 0
-              ? categoryQuestions
-              : generateDefaultQuestions(categoryId);
-
-          // Create questions for each instance of this category
-          for (let i = 1; i <= quantity; i++) {
-            questionsToUse.forEach((question) => {
-              questions.push({
-                question,
-                categoryId,
-                instanceId: `${categoryId}-${i}`,
-              });
-            });
-          }
-        }
-
-        setAllQuestions(questions);
-        setCurrentQuestionIndex(0);
+        // Load initial questions
+        await reloadQuestionsWithVisibility();
       } catch (err) {
-        console.error("Error loading questions and categories:", err);
-        setError(
-          "Nu am putut încărca întrebările. Te rugăm să încerci din nou."
-        );
+        console.error("Error loading initial data:", err);
+        setError("Nu am putut încărca datele. Te rugăm să încerci din nou.");
       } finally {
         setLoading(false);
       }
     };
 
     if (Object.keys(selectedCategories).length > 0) {
-      loadQuestionsAndCategories();
+      loadInitialData();
     } else {
       setLoading(false);
     }
   }, [selectedCategories]);
+
+  // Note: Removed the automatic reload on answer changes to prevent re-rendering issues
+  // Visibility rules will be handled when questions are initially loaded
 
   const currentQuestion = allQuestions[currentQuestionIndex];
   const progress =
@@ -300,34 +272,27 @@ export default function QuestionsFlow({
         <Progress value={progress} className="h-2" />
       </div>
 
-      {/* Current Question */}
-      <QuestionCard
-        question={currentQuestion.question}
-        answer={
-          answers[
-            `${currentQuestion.instanceId}-${currentQuestion.question.id}`
-          ]
-        }
-        onAnswerChange={(answer) =>
-          handleAnswerChange(currentQuestion.question.id, answer)
-        }
-        previousAnswers={
-          // Get all previous answers for this instance
-          Object.fromEntries(
-            Object.entries(answers)
-              .filter(([key]) => key.startsWith(currentQuestion.instanceId))
-              .map(([key, value]) => [key.split("-").slice(2).join("-"), value])
-          )
-        }
-      />
+      {/* Question */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-6">
+        <ImprovedQuestionCard
+          question={currentQuestion.question}
+          answer={
+            answers[
+              `${currentQuestion.instanceId}-${currentQuestion.question.id}`
+            ]
+          }
+          onAnswerChange={(answer: any) =>
+            handleAnswerChange(currentQuestion.question.id, answer)
+          }
+          previousAnswers={answers}
+        />
+      </div>
 
       {/* Navigation */}
-      <div className="flex justify-between pt-6">
+      <div className="flex justify-between">
         <Button variant="outline" onClick={handleBack}>
           <ArrowLeft className="h-4 w-4 mr-2" />
-          {currentQuestionIndex === 0
-            ? "Înapoi la Categorii"
-            : "Întrebarea Anterioară"}
+          {currentQuestionIndex === 0 ? "Înapoi la Categorii" : "Înapoi"}
         </Button>
 
         <Button onClick={handleNext} disabled={!canProceedToNext()}>
